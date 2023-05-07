@@ -6,9 +6,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract StreamPayment {
 
-    uint256 totalStreams = 0;  // start from 0, will be next streamID
+    uint256 totalStreams = 1;  // start from 1 (to be different from default value), will be next streamID
     mapping (uint => Stream) streams;  // use streamID to query
-    mapping (uint => address) streamsOwner;  // [streamID, owner]
+    // mapping (uint => address) streamsOwner;  // [streamID, owner]
+    mapping (address => uint256[]) streamsIDBelongToAOwner;  // [owner, streamID]
 
     enum StreamState {
         notStarted,
@@ -72,16 +73,20 @@ contract StreamPayment {
         totalStreams++;
 
         streams[stream.streamID] = stream;
+        streamsIDBelongToAOwner[msg.sender].push(stream.streamID);
 
         return stream.streamID;
     }
 
-    // gas report
+    // try gas report
     // return all info of the payment filter by state to show in the frontend
     // query the info with streamID, access control just to higher the difficulty of one to see the info of others
-    function getStreamInfo(uint256 _streamID, StreamState state) view external {
-        require(msg.sender == streamsOwner[_streamID], "You are not the owner of this stream");
-        pass;
+    function getStreamInfo(StreamState state) view external {
+        // require(streamsBelongToAOwner[msg.sender].length > 0, "This address doesn't own any stream"); // whether to block -> seems no need
+        Stream[] memory streamsInfo = new Stream[](streamsIDBelongToAOwner[msg.sender].length);  // new 出 array
+        for(uint i = 0; i < streamsIDBelongToAOwner[msg.sender].length; i++) {
+            streamsInfo[i] = streams[streamsIDBelongToAOwner[msg.sender][i]];
+        }
+        return streamsInfo;
     }
-
 }
