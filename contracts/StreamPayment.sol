@@ -58,6 +58,9 @@ contract StreamPayment {
         // valid ERC20 token
         require(isValidERC20Token(token) == true, "Token address is not a valid ERC20 token");
 
+        // [TODO] transfer token from the payer's address to this contract
+        //   1. check if the remain amount is enough
+
         // stream
         Stream memory stream;  // memory: temporary usage
         stream.title    = title;
@@ -78,6 +81,31 @@ contract StreamPayment {
         return stream.streamID;
     }
 
+    // which streamID of one owner is claiming
+    function claimPayment(uint256 streamID, uint256 _claimAmount) external {
+        uint256[] memory streamIDList = streamsBelongToAOwner[msg.sender];
+        bool found = false;
+        Stream memory stream;
+        for(uint i = 0; i < streamIDList.length; i++) {
+            if(streams[streamIDList[i]].streamID == streamID) {
+                // mark as found
+                found = true;
+                // get the stream out
+                stream = streams[streamIDList[i]];
+            }
+        }
+        require(found == true, "Didn't find the streamID in your receiving record");
+
+        uint256 validClaimAmount = stream.totalAmount * ((block.timestamp - stream.startTime) / (stream.endTime - stream.startTime));
+        validClaimAmount -= stream.claimedAmount;
+        require(_claimAmount <= validClaimAmount, "claimedAmount larger than validClaimAmount");
+
+        // transfer from this contract to the msg.sender
+        IERC20(stream.token).transferFrom(address(this), msg.sender, _claimAmount);
+        streams[streamID].claimAmount -= _claimAmount;
+    }
+
+    // owner, receiver request to know -> [TODO] need to split
     // try gas report
     // return all info of the payment filter by state to show in the frontend
     // query the info with streamID, access control just to higher the difficulty of one to see the info of others
