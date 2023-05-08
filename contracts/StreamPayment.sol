@@ -6,11 +6,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract StreamPayment {
 
-    uint256 totalStreams = 1;  // start from 1 (to be different from default value), will be next streamID
+    uint256 totalStreams = 0;  // start from 1 (to be different from default value), will be next streamID
     mapping (uint => Stream) streams;  // use streamID to query
     // mapping (uint => address) streamsOwner;  // [streamID, owner]
-    mapping (address => uint256[]) streamsIDBelongToAOwner;  // [owner, streamID]
-
+    // mapping (address => uint256[]) streamsIDBelongToAOwner;  // [payer, streamID] -> space is more expensive
     enum StreamState {
         notStarted,
         ongoing,
@@ -21,7 +20,7 @@ contract StreamPayment {
         string  title;
         address payer;
         address receiver;
-        address token;
+        address tokenAddress;
         uint256 totalAmount;
         uint256 claimedAmount;  // remainedAmount = totalAmount - claimedAmount
         uint256 startTime;
@@ -39,7 +38,7 @@ contract StreamPayment {
     function createStream(string  title,
                           address payer,
                           address receiver,
-                          address token,        // currently support ERC20 token
+                          address tokenAddress,        // currently support ERC20 token
                           uint256 totalAmount,
                           uint256 startTime,
                           uint256 endTime) external returns (uint256) {
@@ -56,17 +55,21 @@ contract StreamPayment {
         require(totalAmount > 0, "Transfer amount of the token needs to be greater than zero");
 
         // valid ERC20 token
-        require(isValidERC20Token(token) == true, "Token address is not a valid ERC20 token");
+        require(isValidERC20Token(tokenAddress) == true, "Token address is not a valid ERC20 token");
 
-        // [TODO] transfer token from the payer's address to this contract
+        //  transfer token from the payer's address to this contract
         //   1. check if the remain amount is enough
+        IERC20 token = IERC20(tokenAddress);
+        require(token.balanceOf(payer) >= totalAmount, "The payer's token amount is not enough to create the stream");
+        //   2. transfer total amount to this contract's address
+        token.transferFrom(payer, address(this), totalAmount);
 
         // stream
         Stream memory stream;  // memory: temporary usage
         stream.title    = title;
         stream.payer    = payer;
         stream.receiver = receiver;
-        stream.token    = token;
+        stream.tokenAddress    = tokenAddress;
         stream.totalAmount      = totalAmount;
         stream.claimedAmount    = 0;
         stream.startTime        = startTime;
@@ -76,7 +79,7 @@ contract StreamPayment {
         totalStreams++;
 
         streams[stream.streamID] = stream;
-        streamsIDBelongToAOwner[msg.sender].push(stream.streamID);
+        // streamsIDBelongToAOwner[payer].push(stream.streamID);  // payer is msg.sender
 
         return stream.streamID;
     }
@@ -101,19 +104,31 @@ contract StreamPayment {
         require(_claimAmount <= validClaimAmount, "claimedAmount larger than validClaimAmount");
 
         // transfer from this contract to the msg.sender
-        IERC20(stream.token).transferFrom(address(this), msg.sender, _claimAmount);
+        IERC20(stream.tokenAddress).transferFrom(address(this), msg.sender, _claimAmount);
         streams[streamID].claimAmount -= _claimAmount;
     }
 
-    // owner, receiver request to know -> [TODO] need to split
+    function getPayerStreamInfo(StreamState state) view external returns (Stream[] memory) {
+        // require(streamsBelongToAOwner[msg.sender].length > 0, "This address doesn't own any stream"); // whether to block -> seems no need
+        Stream[] memory streamsInfo;
+        for(uint i = 0; i < totalStreams; i++) {
+            if(streams[i].payer == msg.sender && streams[i].state == state) {
+                streamsInfo.push(streams[i]);
+            }
+        }
+        return streamsInfo;
+    }
+
     // try gas report
     // return all info of the payment filter by state to show in the frontend
     // query the info with streamID, access control just to higher the difficulty of one to see the info of others
-    function getStreamInfo(StreamState state) view external {
+    function getReceiverStreamInfo(StreamState state) view external returns (Stream[] memory) {
         // require(streamsBelongToAOwner[msg.sender].length > 0, "This address doesn't own any stream"); // whether to block -> seems no need
-        Stream[] memory streamsInfo = new Stream[](streamsIDBelongToAOwner[msg.sender].length);  // new 出 array
-        for(uint i = 0; i < streamsIDBelongToAOwner[msg.sender].length; i++) {
-            streamsInfo[i] = streams[streamsIDBelongToAOwner[msg.sender][i]];
+        Stream[] memory streamsInfo;
+        for(uint i = 0; i < totalStreams; i++) {
+            if(streams[i].receiver == msg.sender && streams[i].state == state) {
+                streamsInfo.push(streams[i]);
+            }
         }
         return streamsInfo;
     }
