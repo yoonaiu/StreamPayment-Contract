@@ -8,8 +8,6 @@ contract StreamPayment {
 
     uint256 totalStreams = 0;  // start from 1 (to be different from default value), will be next streamID
     mapping (uint => Stream) streams;  // use streamID to query
-    // mapping (uint => address) streamsOwner;  // [streamID, owner]
-    // mapping (address => uint256[]) streamsIDBelongToAOwner;  // [payer, streamID] -> space is more expensive
     enum StreamState {
         notStarted,
         ongoing,
@@ -79,33 +77,21 @@ contract StreamPayment {
         totalStreams++;
 
         streams[stream.streamID] = stream;
-        // streamsIDBelongToAOwner[payer].push(stream.streamID);  // payer is msg.sender
 
         return stream.streamID;
     }
 
     // which streamID of one owner is claiming
     function claimPayment(uint256 streamID, uint256 _claimAmount) external {
-        uint256[] memory streamIDList = streamsBelongToAOwner[msg.sender];
-        bool found = false;
-        Stream memory stream;
-        for(uint i = 0; i < streamIDList.length; i++) {
-            if(streams[streamIDList[i]].streamID == streamID) {
-                // mark as found
-                found = true;
-                // get the stream out
-                stream = streams[streamIDList[i]];
-            }
-        }
-        require(found == true, "Didn't find the streamID in your receiving record");
+        require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot claim the asset");
 
-        uint256 validClaimAmount = stream.totalAmount * ((block.timestamp - stream.startTime) / (stream.endTime - stream.startTime));
-        validClaimAmount -= stream.claimedAmount;
+        uint256 validClaimAmount = streams[streamID].totalAmount * ((block.timestamp - streams[streamID].startTime) / (streams[streamID].endTime - streams[streamID].startTime));
+        validClaimAmount -= streams[streamID].claimedAmount;
         require(_claimAmount <= validClaimAmount, "claimedAmount larger than validClaimAmount");
 
         // transfer from this contract to the msg.sender
-        IERC20(stream.tokenAddress).transferFrom(address(this), msg.sender, _claimAmount);
-        streams[streamID].claimAmount -= _claimAmount;
+        IERC20(streams[streamID].tokenAddress).transferFrom(address(this), msg.sender, _claimAmount);
+        streams[streamID].claimedAmount += _claimAmount;
     }
 
     function getPayerStreamInfo(StreamState state) view external returns (Stream[] memory) {
