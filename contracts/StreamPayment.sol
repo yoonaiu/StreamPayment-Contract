@@ -8,11 +8,6 @@ contract StreamPayment {
 
     uint256 totalStreams = 0;  // start from 1 (to be different from default value), will be next streamID
     mapping (uint => Stream) streams;  // use streamID to query
-    enum StreamState {
-        notStarted,
-        ongoing,
-        finished
-    }
 
     struct Stream {
         string  title;
@@ -23,7 +18,6 @@ contract StreamPayment {
         uint256 claimedAmount;  // remainedAmount = totalAmount - claimedAmount
         uint256 startTime;
         uint256 endTime;
-        StreamState state;
         uint256 streamID;
     }
 
@@ -72,7 +66,6 @@ contract StreamPayment {
         stream.claimedAmount    = 0;
         stream.startTime        = startTime;
         stream.endTime          = endTime;
-        stream.state            = StreamState.notStarted;
         stream.streamID         = totalStreams;
         totalStreams++;
 
@@ -94,11 +87,11 @@ contract StreamPayment {
         streams[streamID].claimedAmount += _claimAmount;
     }
 
-    function getPayerStreamInfo(StreamState state) view external returns (Stream[] memory) {
+    function getPayerStreamInfo() view external returns (Stream[] memory) {
         // require(streamsBelongToAOwner[msg.sender].length > 0, "This address doesn't own any stream"); // whether to block -> seems no need
         Stream[] memory streamsInfo;
         for(uint i = 0; i < totalStreams; i++) {
-            if(streams[i].payer == msg.sender && streams[i].state == state) {
+            if(streams[i].payer == msg.sender) {
                 streamsInfo.push(streams[i]);
             }
         }
@@ -108,11 +101,10 @@ contract StreamPayment {
     // try gas report
     // return all info of the payment filter by state to show in the frontend
     // query the info with streamID, access control just to higher the difficulty of one to see the info of others
-    function getReceiverStreamInfo(StreamState state) view external returns (Stream[] memory) {
-        // require(streamsBelongToAOwner[msg.sender].length > 0, "This address doesn't own any stream"); // whether to block -> seems no need
+    function getReceiverStreamInfo() view external returns (Stream[] memory) {
         Stream[] memory streamsInfo;
         for(uint i = 0; i < totalStreams; i++) {
-            if(streams[i].receiver == msg.sender && streams[i].state == state) {
+            if(streams[i].receiver == msg.sender) {
                 streamsInfo.push(streams[i]);
             }
         }
