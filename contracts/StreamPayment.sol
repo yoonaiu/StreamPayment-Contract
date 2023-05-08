@@ -74,17 +74,17 @@ contract StreamPayment {
         return stream.streamID;
     }
 
-    function claimPayment(uint256 streamID, uint256 _claimAmount) external {
+    function claimPayment(uint256 streamID, uint256 claimAmount) external {
         require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot claim the asset");
 
         // the amount able to claim - the amount already claimed
         uint256 validClaimAmount = streams[streamID].totalAmount * ((block.timestamp - streams[streamID].startTime) / (streams[streamID].endTime - streams[streamID].startTime));
         validClaimAmount -= streams[streamID].claimedAmount;
-        require(_claimAmount <= validClaimAmount, "_claimAmount larger than validClaimAmount");
+        require(claimAmount <= validClaimAmount, "claimAmount larger than validClaimAmount");
 
         // transfer from this contract to the streams[streamID].receiver
-        IERC20(streams[streamID].tokenAddress).transferFrom(address(this), streams[streamID].receiver, _claimAmount);
-        streams[streamID].claimedAmount += _claimAmount;
+        IERC20(streams[streamID].tokenAddress).transferFrom(address(this), streams[streamID].receiver, claimAmount);
+        streams[streamID].claimedAmount += claimAmount;
     }
 
     function getPayerStreamInfo() view external returns (Stream[] memory) {
