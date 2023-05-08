@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract StreamPayment {
 
-    uint256 totalStreams = 0;  // start from 1 (to be different from default value), will be next streamID
-    mapping (uint => Stream) streams;  // use streamID to query
+    uint256 totalStreams = 0;
+    mapping (uint => Stream) streams;  // key is streamID
 
     struct Stream {
         string  title;
@@ -53,7 +53,7 @@ contract StreamPayment {
         //   1. check if the remain amount is enough
         IERC20 token = IERC20(tokenAddress);
         require(token.balanceOf(payer) >= totalAmount, "The payer's token amount is not enough to create the stream");
-        //   2. transfer total amount to this contract's address
+        //   2. transfer total amount to this contract's address <need payer's approval first>
         token.transferFrom(payer, address(this), totalAmount);
 
         // stream
@@ -74,13 +74,13 @@ contract StreamPayment {
         return stream.streamID;
     }
 
-    // which streamID of one owner is claiming
     function claimPayment(uint256 streamID, uint256 _claimAmount) external {
         require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot claim the asset");
 
+        // the amount able to claim - the amount already claimed
         uint256 validClaimAmount = streams[streamID].totalAmount * ((block.timestamp - streams[streamID].startTime) / (streams[streamID].endTime - streams[streamID].startTime));
         validClaimAmount -= streams[streamID].claimedAmount;
-        require(_claimAmount <= validClaimAmount, "claimedAmount larger than validClaimAmount");
+        require(_claimAmount <= validClaimAmount, "_claimAmount larger than validClaimAmount");
 
         // transfer from this contract to the msg.sender
         IERC20(streams[streamID].tokenAddress).transferFrom(address(this), msg.sender, _claimAmount);
@@ -88,7 +88,6 @@ contract StreamPayment {
     }
 
     function getPayerStreamInfo() view external returns (Stream[] memory) {
-        // require(streamsBelongToAOwner[msg.sender].length > 0, "This address doesn't own any stream"); // whether to block -> seems no need
         Stream[] memory streamsInfo;
         for(uint i = 0; i < totalStreams; i++) {
             if(streams[i].payer == msg.sender) {
