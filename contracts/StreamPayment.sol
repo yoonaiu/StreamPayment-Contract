@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract StreamPayment {
 
     uint256 totalStreams = 0;
-    mapping (uint => Stream) streams;  // key is streamID
+    mapping (uint => Stream) public streams;  // key is streamID
 
     struct Stream {
         string  title;
