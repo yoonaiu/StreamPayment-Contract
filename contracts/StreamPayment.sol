@@ -27,7 +27,7 @@ contract StreamPayment {
         return size > 0 && IERC20(tokenAddress).totalSupply() > 0;  // wheter token address implement IERC20 interface
     }
 
-    function createStream(string  title,
+    function createStream(string  memory title,
                           address payer,
                           address receiver,
                           address tokenAddress,        // currently support ERC20 token
@@ -82,16 +82,25 @@ contract StreamPayment {
         validClaimAmount -= streams[streamID].claimedAmount;
         require(_claimAmount <= validClaimAmount, "_claimAmount larger than validClaimAmount");
 
-        // transfer from this contract to the msg.sender
-        IERC20(streams[streamID].tokenAddress).transferFrom(address(this), msg.sender, _claimAmount);
+        // transfer from this contract to the streams[streamID].receiver
+        IERC20(streams[streamID].tokenAddress).transferFrom(address(this), streams[streamID].receiver, _claimAmount);
         streams[streamID].claimedAmount += _claimAmount;
     }
 
     function getPayerStreamInfo() view external returns (Stream[] memory) {
-        Stream[] memory streamsInfo;
+        uint cnt = 0;
         for(uint i = 0; i < totalStreams; i++) {
             if(streams[i].payer == msg.sender) {
-                streamsInfo.push(streams[i]);
+                cnt++;
+            }
+        }
+
+        Stream[] memory streamsInfo = new Stream[](cnt);
+        cnt = 0;
+        for(uint i = 0; i < totalStreams; i++) {
+            if(streams[i].payer == msg.sender) {
+                streamsInfo[cnt] = streams[i];
+                cnt++;
             }
         }
         return streamsInfo;
@@ -101,10 +110,19 @@ contract StreamPayment {
     // return all info of the payment filter by state to show in the frontend
     // query the info with streamID, access control just to higher the difficulty of one to see the info of others
     function getReceiverStreamInfo() view external returns (Stream[] memory) {
-        Stream[] memory streamsInfo;
+        uint cnt = 0;
+        for(uint i = 0; i < totalStreams; i++) {
+            if(streams[i].payer == msg.sender) {
+                cnt++;
+            }
+        }
+
+        Stream[] memory streamsInfo = new Stream[](cnt);
+        cnt = 0;
         for(uint i = 0; i < totalStreams; i++) {
             if(streams[i].receiver == msg.sender) {
-                streamsInfo.push(streams[i]);
+                streamsInfo[cnt] = streams[i];
+                cnt++;
             }
         }
         return streamsInfo;
