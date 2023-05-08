@@ -38,13 +38,13 @@ contract StreamPayment {
         // uint: second refer to "block.timestamp"
         require(startTime > block.timestamp, "Start time is in the past");
         require(endTime > block.timestamp, "End time is in the past");
-        require(endTime > startTime, "End time need to be later than start time");
+        require(endTime > startTime, "End time should be later than start time");
         
-        require(payer != address(0), "Invalid payer address");
-        require(receiver != address(0), "Invalid receiver address");
-        require(payer != receiver, "Payer can not be the same as receiver");
+        require(payer != address(0), "payer address should not be zero address");
+        require(receiver != address(0), "receiver address should not be zero address");
+        require(payer != receiver, "Payer should not be the same as receiver");
 
-        require(totalAmount > 0, "Transfer amount of the token needs to be greater than zero");
+        require(totalAmount > 0, "Transfer amount of the token should be greater than zero");
 
         // valid ERC20 token
         require(isValidERC20Token(tokenAddress) == true, "Token address is not a valid ERC20 token");
