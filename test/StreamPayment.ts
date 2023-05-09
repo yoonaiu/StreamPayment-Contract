@@ -40,6 +40,118 @@ describe('StreamPayment', function () {
         return { zeroAddress, owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime }
     }
 
+    describe("StreamPayment getPayerStreamInfo", function () {
+        it("Should get payer stream info correctly", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "StreamCreated")[0]
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(1)
+                return;
+            }
+            const return_streamID = eventArgs[1]
+
+            let streamsInfo = await StreamPayment.connect(payer).getPayerStreamInfo();
+            
+            expect(streamsInfo[0].title).to.equal(title);
+            expect(streamsInfo[0].payer).to.equal(payer.address);
+            expect(streamsInfo[0].receiver).to.equal(receiver.address);
+            expect(streamsInfo[0].tokenAddress).to.equal(tokenAddress);
+            expect(streamsInfo[0].totalAmount).to.equal(totalAmount);
+            expect(streamsInfo[0].claimedAmount).to.equal(0);
+            expect(streamsInfo[0].validClaimAmount).to.equal(0);
+            expect(streamsInfo[0].startTime).to.equal(startTime);
+            expect(streamsInfo[0].endTime).to.equal(endTime);
+            expect(streamsInfo[0].streamID).to.equal(return_streamID);
+
+            // sleep until stream payment start
+            await sleep(1000 * 20);
+
+            // after countValidClaimAmount
+            await StreamPayment.connect(receiver).countValidClaimAmount(return_streamID);
+            let [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
+                streamTotalAmount, streamClaimedAmount, streamvalidClaimAmount, streamStartTime, streamEndTime, streamID
+            ] = await StreamPayment.streams(return_streamID)
+            streamsInfo = await StreamPayment.connect(payer).getPayerStreamInfo();
+
+            expect(streamsInfo[0].validClaimAmount).to.equal(streamvalidClaimAmount);
+
+            // after claimPayment
+            let inputClaimedAmount = streamvalidClaimAmount;
+            await StreamPayment.connect(receiver).claimPayment(return_streamID, inputClaimedAmount);
+            [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
+                streamTotalAmount, streamClaimedAmount, streamvalidClaimAmount, streamStartTime, streamEndTime, streamID
+            ] = await StreamPayment.streams(return_streamID)
+            streamsInfo = await StreamPayment.connect(payer).getPayerStreamInfo();
+
+            expect(streamsInfo[0].claimedAmount).to.equal(inputClaimedAmount);
+        });
+    });
+
+    describe("StreamPayment getReceiverStreamInfo", function () {
+        it("Should get receiver stream info correctly", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "StreamCreated")[0]
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(1)
+                return;
+            }
+            const return_streamID = eventArgs[1]
+
+            let streamsInfo = await StreamPayment.connect(receiver).getReceiverStreamInfo();
+            
+            expect(streamsInfo[0].title).to.equal(title);
+            expect(streamsInfo[0].payer).to.equal(payer.address);
+            expect(streamsInfo[0].receiver).to.equal(receiver.address);
+            expect(streamsInfo[0].tokenAddress).to.equal(tokenAddress);
+            expect(streamsInfo[0].totalAmount).to.equal(totalAmount);
+            expect(streamsInfo[0].claimedAmount).to.equal(0);
+            expect(streamsInfo[0].validClaimAmount).to.equal(0);
+            expect(streamsInfo[0].startTime).to.equal(startTime);
+            expect(streamsInfo[0].endTime).to.equal(endTime);
+            expect(streamsInfo[0].streamID).to.equal(return_streamID);
+
+            // sleep until stream payment start
+            await sleep(1000 * 20);
+
+            // after countValidClaimAmount
+            await StreamPayment.connect(receiver).countValidClaimAmount(return_streamID);
+            let [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
+                streamTotalAmount, streamClaimedAmount, streamvalidClaimAmount, streamStartTime, streamEndTime, streamID
+            ] = await StreamPayment.streams(return_streamID)
+            streamsInfo = await StreamPayment.connect(receiver).getReceiverStreamInfo();
+
+            expect(streamsInfo[0].validClaimAmount).to.equal(streamvalidClaimAmount);
+
+            // after claimPayment
+            let inputClaimedAmount = streamvalidClaimAmount;
+            await StreamPayment.connect(receiver).claimPayment(return_streamID, inputClaimedAmount);
+            [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
+                streamTotalAmount, streamClaimedAmount, streamvalidClaimAmount, streamStartTime, streamEndTime, streamID
+            ] = await StreamPayment.streams(return_streamID)
+            streamsInfo = await StreamPayment.connect(receiver).getReceiverStreamInfo();
+
+            expect(streamsInfo[0].claimedAmount).to.equal(inputClaimedAmount);
+        });
+    });
+
     describe("StreamPayment createStream", function () {
         it("startTime should be later than block.timestamp", async function () {
             const { zeroAddress, owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
@@ -328,6 +440,6 @@ describe('StreamPayment', function () {
 
             expect(streamClaimedAmount).to.equal(inputClaimedAmount);
         });
-
     });
+
 });

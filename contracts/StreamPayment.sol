@@ -144,7 +144,7 @@ contract StreamPayment {
     function getReceiverStreamInfo() view external returns (Stream[] memory) {
         uint cnt = 0;
         for(uint i = 0; i < totalStreams; i++) {
-            if(streams[i].payer == msg.sender) {
+            if(streams[i].receiver == msg.sender) {
                 cnt++;
             }
         }
