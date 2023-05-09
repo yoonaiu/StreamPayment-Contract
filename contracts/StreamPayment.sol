@@ -37,9 +37,6 @@ contract StreamPayment {
                           uint256 totalAmount,
                           uint256 startTime,
                           uint256 endTime) external returns (uint256) {
-        console.log("block.timestamp: ", block.timestamp);
-        console.log("startTime: ", startTime);
-        console.log("endTime: ", endTime);
         // uint: second refer to "block.timestamp"
         require(startTime > block.timestamp, "Start time is in the past");
         require(endTime > block.timestamp, "End time is in the past");
@@ -82,28 +79,13 @@ contract StreamPayment {
         return stream.streamID;
     }
 
-    // function getValidClaimAmount(uint256 blockTimestamp, uint256 streamID) view internal returns (uint256) {
-    //     uint256 validClaimAmount = streams[streamID].totalAmount * ((blockTimestamp - streams[streamID].startTime) / (streams[streamID].endTime - streams[streamID].startTime));
-    //     validClaimAmount -= streams[streamID].claimedAmount;
-    //     return validClaimAmount;
-    // }
-
     // call this function to check the valid amount able to claim before calling claimPayment
     function countValidClaimAmount(uint256 streamID) external {
         require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot claim the asset");
 
         uint256 blockTimestamp = block.timestamp;
-        console.log("blockTimestamp in countValidClaimAmount: ", blockTimestamp);
-        console.log("streams[streamID].startTime in countValidClaimAmount: ", streams[streamID].startTime);
         require(blockTimestamp > streams[streamID].startTime, "The payment not yet start, you can't claim it");
-        console.log("streams[streamID].endTime in countValidClaimAmount: ", streams[streamID].endTime);
-        console.log("(blockTimestamp - streams[streamID].startTime) in countValidClaimAmount: ", (blockTimestamp - streams[streamID].startTime));
-        console.log("(streams[streamID].endTime - streams[streamID].startTime) in countValidClaimAmount: ",  (streams[streamID].endTime - streams[streamID].startTime));
-        console.log("(streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)): ", (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)));
-        console.log("(streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime): ", (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime));
 
-        console.log("countValidClaimAmount - 2");
-        // uint256 validClaimAmount = (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime);
         uint256 validClaimAmount = 0;
         if(blockTimestamp >= streams[streamID].endTime) {
             validClaimAmount = streams[streamID].totalAmount;
@@ -111,35 +93,17 @@ contract StreamPayment {
             validClaimAmount = (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime);
         }
         
-        console.log("countValidClaimAmount - 3");
         validClaimAmount -= streams[streamID].claimedAmount;
         streams[streamID].validClaimAmount = validClaimAmount;  // renew the member of the struct
-        // uint256 validClaimAmount = getValidClaimAmount(blockTimestamp, streamID);
-        // return validClaimAmount;
     }
 
     function claimPayment(uint256 streamID, uint256 claimAmount) external {
-        console.log("enter claimPayment - 1");
         require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot claim the asset");
-        console.log("enter claimPayment - 2");
         uint256 blockTimestamp = block.timestamp;
-        console.log("blockTimestamp in claimPayment: ", blockTimestamp);
-        console.log("streams[streamID].startTime in claimPayment: ", streams[streamID].startTime);
 
         require(blockTimestamp > streams[streamID].startTime, "The payment not yet start, you can't claim it");
 
         // the amount able to claim - the amount already claimed
-        console.log("blockTimestamp in solidity: ", blockTimestamp);
-        console.log("streams[streamID].startTime: ", streams[streamID].startTime);
-
-        uint256 tmp_1 = (blockTimestamp - streams[streamID].startTime);
-        console.log("tmp_1: ", tmp_1);
-        uint256 tmp_2 = (streams[streamID].endTime - streams[streamID].startTime);
-        console.log("tmp_2: ", tmp_2);
-
-        // uint256 tmp = (blockTimestamp - streams[streamID].startTime) / (streams[streamID].endTime - streams[streamID].startTime);
-        // console.log("tmp: ", tmp);
-        // uint256 validClaimAmount = streams[streamID].totalAmount * tmp;
         uint256 validClaimAmount = 0;
         if(blockTimestamp >= streams[streamID].endTime) {
             validClaimAmount = streams[streamID].totalAmount;
@@ -147,16 +111,10 @@ contract StreamPayment {
             validClaimAmount = (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime);
         }
         
-        console.log("validClaimAmount - 1: ", validClaimAmount);
         validClaimAmount -= streams[streamID].claimedAmount;
-        console.log("validClaimAmount - 2: ", validClaimAmount);
         require(claimAmount <= validClaimAmount, "claimAmount larger than validClaimAmount");
 
-        // ERC20Token = 
-        console.log("contract token number: ", IERC20(streams[streamID].tokenAddress).balanceOf(address(this)));
-
         // transfer from this contract to the streams[streamID].receiver
-        // IERC20(streams[streamID].tokenAddress).transferFrom(address(this), streams[streamID].receiver, claimAmount);
         IERC20(streams[streamID].tokenAddress).transfer(streams[streamID].receiver, claimAmount);  // transferFrom function need approval of contract address
         streams[streamID].claimedAmount += claimAmount;
     }
