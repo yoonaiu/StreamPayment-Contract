@@ -6,7 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "hardhat/console.sol";
 
 contract StreamPayment {
-    event StreamCreated(address, uint256);
+    event createStreamEvent(address, address, uint256);
+    event claimPaymentEvent(uint256, uint256);
+    event terminatePaymentEvent(uint256);
 
     uint256 totalStreams = 0;
     mapping (uint => Stream) public streams;  // key is streamID
@@ -18,10 +20,12 @@ contract StreamPayment {
         address tokenAddress;
         uint256 totalAmount;
         uint256 claimedAmount;  // remainedAmount = totalAmount - claimedAmount
+        uint256 partialAmountAbleToClaim;
         uint256 validClaimAmount;
         uint256 startTime;
         uint256 endTime;
         uint256 streamID;
+        bool    terminatedHalfway;
     }
 
     function isValidERC20Token(address tokenAddress) public view returns (bool) {
@@ -66,58 +70,79 @@ contract StreamPayment {
         stream.tokenAddress    = tokenAddress;
         stream.totalAmount      = totalAmount;
         stream.claimedAmount    = 0;
-        stream.validClaimAmount = 0;
+        stream.partialAmountAbleToClaim = 0;
+        stream.validClaimAmount    = 0;
         stream.startTime        = startTime;
         stream.endTime          = endTime;
         stream.streamID         = totalStreams;
+        stream.terminatedHalfway       = false;
         totalStreams++;
 
         streams[stream.streamID] = stream;
 
-        emit StreamCreated(payer, stream.streamID);
+        emit createStreamEvent(payer, receiver, stream.streamID);  // may extent the content in the future, other variables can be filtered by streams
 
         return stream.streamID;
     }
 
+    function _countClaimAmount(uint256 streamID, uint256 blockTimestamp) internal {
+        require(streamID < totalStreams, "Invalid streamID");  // 0 <= streamID will be banned by solidity(uint256)
+
+        if(streams[streamID].terminatedHalfway == false) {  // can count a new one, if '_countClaimAmount', use the original one
+            if(blockTimestamp >= streams[streamID].endTime) {
+                streams[streamID].partialAmountAbleToClaim = streams[streamID].totalAmount;
+            } else {
+                streams[streamID].partialAmountAbleToClaim = (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime);
+            }
+        }
+
+        streams[streamID].validClaimAmount = streams[streamID].partialAmountAbleToClaim - streams[streamID].claimedAmount;
+    }
+
     // call this function to check the valid amount able to claim before calling claimPayment
     function countValidClaimAmount(uint256 streamID) external {
-        require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot claim the asset");
+        require(streamID < totalStreams, "Invalid streamID");
+        require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot count the claim asset");
 
         uint256 blockTimestamp = block.timestamp;
-        require(blockTimestamp > streams[streamID].startTime, "The payment not yet start, you can't claim it");
+        require(blockTimestamp > streams[streamID].startTime, "The payment not yet start, you cannot count the claim asset");
 
-        uint256 validClaimAmount = 0;
-        if(blockTimestamp >= streams[streamID].endTime) {
-            validClaimAmount = streams[streamID].totalAmount;
-        } else {
-            validClaimAmount = (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime);
-        }
-        
-        validClaimAmount -= streams[streamID].claimedAmount;
-        streams[streamID].validClaimAmount = validClaimAmount;  // renew the member of the struct
+        _countClaimAmount(streamID, blockTimestamp);
     }
 
     function claimPayment(uint256 streamID, uint256 claimAmount) external {
+        require(streamID < totalStreams, "Invalid streamID");
         require(streams[streamID].receiver == msg.sender, "This streamID's receiver is not you, you cannot claim the asset");
-        uint256 blockTimestamp = block.timestamp;
-
-        require(blockTimestamp > streams[streamID].startTime, "The payment not yet start, you can't claim it");
-
-        // the amount able to claim - the amount already claimed
-        uint256 validClaimAmount = 0;
-        if(blockTimestamp >= streams[streamID].endTime) {
-            validClaimAmount = streams[streamID].totalAmount;
-        } else {
-            validClaimAmount = (streams[streamID].totalAmount * (blockTimestamp - streams[streamID].startTime)) / (streams[streamID].endTime - streams[streamID].startTime);
-        }
         
-        validClaimAmount -= streams[streamID].claimedAmount;
-        require(claimAmount <= validClaimAmount, "claimAmount larger than validClaimAmount");
+        uint256 blockTimestamp = block.timestamp;
+        require(blockTimestamp > streams[streamID].startTime, "The payment not yet start, you cannot claim it");
+
+        _countClaimAmount(streamID, blockTimestamp);
+
+        require(claimAmount <= streams[streamID].validClaimAmount, "claimAmount larger than validClaimAmount");
 
         // transfer from this contract to the streams[streamID].receiver
         IERC20(streams[streamID].tokenAddress).transfer(streams[streamID].receiver, claimAmount);  // transferFrom function need approval of contract address
         streams[streamID].claimedAmount += claimAmount;
+
+        emit claimPaymentEvent(streamID, claimAmount);
     }
+
+    function terminatePayment(uint256 streamID) external {
+        require(streamID < totalStreams, "Invalid streamID");
+        require(streams[streamID].payer == msg.sender, "This streamID's payer is not you, you cannot terminate the payment");
+        require(streams[streamID].terminatedHalfway == false, "Cannot terminate twice");
+        
+        uint256 blockTimestamp = block.timestamp;
+        require(blockTimestamp > streams[streamID].startTime, "The payment not yet start, you cannot terminate it");
+        require(blockTimestamp < streams[streamID].endTime, "The payment has already done, you cannot terminate it");
+
+        // count the last claim amount by timestamp and fix partialAmountAbleToClaim by terminatedHalfway = true here
+        _countClaimAmount(streamID, blockTimestamp);
+        streams[streamID].terminatedHalfway = true;
+
+        emit terminatePaymentEvent(streamID);
+    } 
 
     function getPayerStreamInfo() view external returns (Stream[] memory) {
         uint cnt = 0;
