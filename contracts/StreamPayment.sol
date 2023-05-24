@@ -13,19 +13,30 @@ contract StreamPayment {
     uint256 totalStreams = 0;
     mapping (uint => Stream) public streams;  // key is streamID
 
+    enum PenaltyStatus {Unknown, Admit, Dispute}
+
+    struct Penalty {
+        uint256 startTime;
+        uint256 endTime;
+        PenaltyStatus status;
+    }
+
     struct Stream {
         string  title;
         address payer;
         address receiver;
         address tokenAddress;
         uint256 totalAmount;
-        uint256 claimedAmount;  // remainedAmount = totalAmount - claimedAmount
+        uint256 claimedAmount;  // remainedAmount = totalAmount - claimedAmount - penaltyAmount
+        uint256 penaltyAmount;
         uint256 partialAmountAbleToClaim;
         uint256 validClaimAmount;
         uint256 startTime;
         uint256 endTime;
         uint256 streamID;
         bool    terminatedHalfway;
+        uint256 penaltyLength;
+        mapping (uint256 => Penalty) penalties;
     }
 
     function isValidERC20Token(address tokenAddress) public view returns (bool) {
@@ -70,12 +81,14 @@ contract StreamPayment {
         stream.tokenAddress    = tokenAddress;
         stream.totalAmount      = totalAmount;
         stream.claimedAmount    = 0;
+        stream.penaltyAmount    = 0;
         stream.partialAmountAbleToClaim = 0;
         stream.validClaimAmount    = 0;
         stream.startTime        = startTime;
         stream.endTime          = endTime;
         stream.streamID         = totalStreams;
         stream.terminatedHalfway       = false;
+        stream.penaltyLength    = 0;
         totalStreams++;
 
         streams[stream.streamID] = stream;
@@ -83,6 +96,53 @@ contract StreamPayment {
         emit createStreamEvent(payer, receiver, stream.streamID);  // may extent the content in the future, other variables can be filtered by streams
 
         return stream.streamID;
+    }
+
+    /// @notice This function is for the payer of the stream to add penalty to the stream, in case that the receiver not obligate their duty.
+    /// @param streamID The id of the stream
+    /// @param startTime The startTime of the penalty
+    /// @param endTime The endTime of the penalty
+    /// @return
+    function addPenalty(uint256 streamID, uint256 startTime, uint256 endTime) external {
+        require(streamID < totalStreams, "Invalid streamID");
+        require(msg.sender == streams[streamID].payer, "Only payer of the stream can raise penalty");
+        require(startTime >= streams[streamID].startTime, "Start time should be later than stream's own start time");
+        require(endTime <= streams[streamID].endTime, "End time should be earlier than stream's own end time");
+        require(endTime > startTime, "End time should be later than start time");
+
+        streams[streamID].penaltyAmount += (endTime - startTime) * streams[streamID].totalAmount / (streams[streamID].endTime - streams[streamID].startTime);
+
+        Penalty item;
+        item.startTime = startTime;
+        item.endTime = endTime;
+        item.status = PenaltyStatus.Unknown;
+
+        uin256 idx = streams[streamID].penaltyLength;
+        streams[streamID].penaltyLength++;
+
+        streams[streamID].penalties[idx] = item;
+    }
+
+    /// @notice This function is for the receiver of the stream to admit the penalty.
+    /// @param streamID The id of the stream
+    /// @param penaltyID The id of the penalty in that stream
+    /// @return
+    function admitPenalty(uint256 streamID, uint256 penaltyID) external {
+        require(streamID < totalStreams, "Invalid streamID");
+        require(penaltyID < streams[streamID].penaltyLength, "Invalid penalty ID");
+        require(msg.sender == streams[streamID].receiver, "Only receiver of the stream can admit penalty");
+        streams[streamID].penalties[penaltyID].status = PenaltyStatus.Admit;
+    }
+
+    /// @notice This function is for the receiver of the stream to deny the penalty.
+    /// @param streamID The id of the stream
+    /// @param penaltyID The id of the penalty in that stream
+    /// @return
+    function denyPenalty(uint256 streamID, uint256 penaltyID) external {
+        require(streamID < totalStreams, "Invalid streamID");
+        require(penaltyID < streams[streamID].penaltyLength, "Invalid penalty ID");
+        require(msg.sender == streams[streamID].receiver, "Only receiver of the stream can admit penalty");
+        streams[streamID].penalties[penaltyID].status = PenaltyStatus.Dispute;
     }
 
     function _countClaimAmount(uint256 streamID, uint256 blockTimestamp) internal {
@@ -96,7 +156,7 @@ contract StreamPayment {
             }
         }
 
-        streams[streamID].validClaimAmount = streams[streamID].partialAmountAbleToClaim - streams[streamID].claimedAmount;
+        streams[streamID].validClaimAmount = streams[streamID].partialAmountAbleToClaim - streams[streamID].claimedAmount - streams[streamID].penaltyAmount;
     }
 
     // call this function to check the valid amount able to claim before calling claimPayment
