@@ -37,6 +37,7 @@ module.exports = {
     ],
   },
   mocha: {
-    timeout: 70000 // set time limit to be 70 sec
+    timeout: 70000, // set time limit to be 70 sec
+    parallel: true
   },
 };
