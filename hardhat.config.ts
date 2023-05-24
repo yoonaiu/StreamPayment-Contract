@@ -1,8 +1,10 @@
-require('dotenv').config();
+import "@nomicfoundation/hardhat-toolbox";
+import * as dotenv from "dotenv"
+dotenv.config()
+
 require("@nomiclabs/hardhat-ethers");
 // require("@nomiclabs/hardhat-etherscan");
 // require("@nomicfoundation/hardhat-verify");
-require("@nomicfoundation/hardhat-toolbox")
 
 const { API_URL, PRIVATE_KEY, ETHERSCAN_API_KEY } = process.env;
 
@@ -10,14 +12,14 @@ module.exports = {
   solidity: "0.8.18",
   defaultNetwork: "hardhat",
   networks: {
-      hardhat: {},
-      'thunder-testnet' : {
-        url: 'https://testnet-rpc.thundercore.com',
-        chainId: 18,
-        gas: 90000000, 
-        gasPrice: 1e11,
-        accounts: [`0x${PRIVATE_KEY}`],
-      }
+    hardhat: {},
+    'thunder-testnet': {
+      url: 'https://testnet-rpc.thundercore.com',
+      chainId: 18,
+      gas: 90000000,
+      gasPrice: 1e11,
+      accounts: [`0x${PRIVATE_KEY}`],
+    }
   },
   etherscan: {
     apiKey: {
