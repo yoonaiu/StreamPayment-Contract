@@ -2,13 +2,12 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { Contract } from '@ethersproject/contracts';
 import { BigNumber } from 'ethers';
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 // import "solidity-coverage"
 
-function sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+const sleep = async (sec: number) => {
+    await time.increase(sec);
 }
-
 
 function getDateNow() {
     return Math.floor(Date.now() / 1000) + 10;
@@ -48,7 +47,7 @@ describe('Proxy', function () {
     }
 
     /* ----------------------------- Check Proxy ----------------------------- */
-    describe("Proxy Deployment", function () {        
+    describe("Proxy Deployment", function () {
         it("Should set the right owner and logic", async function () {
             const { owner, logicContract, proxyContract } = await loadFixture(beforeEachFixture);
 
@@ -61,7 +60,7 @@ describe('Proxy', function () {
     describe("Proxy changeLogic", function () {
         it('Should allow the owner to change the logic contract', async function () {
             const { owner, logicContract, proxyContract } = await loadFixture(beforeEachFixture);
-            
+
             // we only need different contract address
             const _newlogicContract = await ethers.getContractFactory('StreamPayment');
             const newLogicContract = await _newlogicContract.deploy();
@@ -73,11 +72,11 @@ describe('Proxy', function () {
 
         it('Should not allow non-owners to change the logic contract', async function () {
             const { owner, payer, logicContract, proxyContract } = await loadFixture(beforeEachFixture);
-            
+
             // we only need different contract address
             const _newlogicContract = await ethers.getContractFactory('StreamPayment');
             const newLogicContract = await _newlogicContract.deploy();
-            
+
             await expect(proxyContract.connect(payer).changeLogic(newLogicContract.address)).to.be.revertedWith('Only the owner of this contract can change the logic that Proxy points to!');
         });
     });
@@ -104,7 +103,7 @@ describe('Proxy', function () {
             const return_streamID = eventArgs[2]
 
             let streamsInfo = await proxiedContract.connect(payer).getPayerStreamInfo();
-            
+
             expect(streamsInfo[0].title).to.equal(title);
             expect(streamsInfo[0].payer).to.equal(payer.address);
             expect(streamsInfo[0].receiver).to.equal(receiver.address);
@@ -119,7 +118,7 @@ describe('Proxy', function () {
             expect(streamsInfo[0].terminatedHalfway).to.equal(false);
 
             // sleep until stream payment start
-            await sleep(1000 * 20);
+            await sleep(20);
 
             // after countValidClaimAmount
             await proxiedContract.connect(receiver).countValidClaimAmount(return_streamID);
@@ -171,7 +170,7 @@ describe('Proxy', function () {
             const return_streamID = eventArgs[2]
 
             let streamsInfo = await proxiedContract.connect(receiver).getReceiverStreamInfo();
-            
+
             expect(streamsInfo[0].title).to.equal(title);
             expect(streamsInfo[0].payer).to.equal(payer.address);
             expect(streamsInfo[0].receiver).to.equal(receiver.address);
@@ -186,7 +185,7 @@ describe('Proxy', function () {
             expect(streamsInfo[0].terminatedHalfway).to.equal(false);
 
             // sleep until stream payment start
-            await sleep(1000 * 20);
+            await sleep(20);
 
             // after countValidClaimAmount
             await proxiedContract.connect(receiver).countValidClaimAmount(return_streamID);
@@ -445,7 +444,7 @@ describe('Proxy', function () {
 
         it("Should not claimPayment with claimAmount larger than validClaimAmount - case 1", async function () {
             // [ simply greater than total amount ]
-            
+
             const { owner, payer, receiver, proxiedContract, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
             let tx = await proxiedContract.connect(payer).createStream(title,
                 payer.address,
@@ -468,7 +467,7 @@ describe('Proxy', function () {
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
             ] = await proxiedContract.streams(return_streamID)
 
-            await sleep(1000 * 20);  // sleep until stream start
+            await sleep(20);  // sleep until stream start
             await expect(proxiedContract.connect(receiver).claimPayment(return_streamID, 110)).to.be.revertedWith("claimAmount larger than validClaimAmount");
         });
 
@@ -497,7 +496,7 @@ describe('Proxy', function () {
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
             ] = await proxiedContract.streams(return_streamID)
 
-            await sleep(1000 * 20);  // sleep until stream start
+            await sleep(20);  // sleep until stream start
             await proxiedContract.connect(receiver).countValidClaimAmount(return_streamID);
             [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
@@ -519,7 +518,7 @@ describe('Proxy', function () {
 
             let receipt = await tx.wait();
             let event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
-            
+
             let eventArgs = event?.args;
             if (eventArgs == undefined) {
                 expect(eventArgs).to.be.equal(2)
@@ -537,7 +536,7 @@ describe('Proxy', function () {
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
             ] = await proxiedContract.streams(return_streamID)
 
-            await sleep(1000 * 20);  // sleep until stream start
+            await sleep(20);  // sleep until stream start
             await proxiedContract.connect(receiver).countValidClaimAmount(return_streamID);
             [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
@@ -558,7 +557,7 @@ describe('Proxy', function () {
             const claimAmount = eventArgs[1]
             expect(next_return_streamID).to.equal(return_streamID);
             expect(claimAmount).to.equal(inputClaimedAmount);
-            
+
             [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
             ] = await proxiedContract.streams(return_streamID)
@@ -621,8 +620,8 @@ describe('Proxy', function () {
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
             ] = await proxiedContract.streams(return_streamID)
 
-            await sleep(1000 * 20);  // sleep until stream start
-        
+            await sleep(20);  // sleep until stream start
+
             // payer claim the stream payment himself
             await expect(proxiedContract.connect(receiver).terminatePayment(return_streamID)).to.be.revertedWith("This streamID's payer is not you, you cannot terminate the payment");
         });
@@ -651,7 +650,7 @@ describe('Proxy', function () {
             ] = await proxiedContract.streams(return_streamID)
             expect(streamTerminatedHalfway).to.equal(false);
 
-            await sleep(1000 * 20);  // sleep until stream start
+            await sleep(20);  // sleep until stream start
 
             // terminatePayment
             await proxiedContract.connect(payer).terminatePayment(return_streamID);
@@ -660,7 +659,7 @@ describe('Proxy', function () {
             ] = await proxiedContract.streams(return_streamID)
 
             expect(streamTerminatedHalfway).to.equal(true);
-            
+
             // terminatePayment twice
             await expect(proxiedContract.connect(payer).terminatePayment(return_streamID)).to.be.revertedWith("Cannot terminate twice");
         });
@@ -746,7 +745,7 @@ describe('Proxy', function () {
 
             expect(streamTerminatedHalfway).to.equal(false);
 
-            await sleep(1000 * 20);
+            await sleep(20);
 
             // terminatePayment & check emit event of claimPayment & event parameter
             // await proxiedContract.connect(payer).terminatePayment(return_streamID);
@@ -770,7 +769,7 @@ describe('Proxy', function () {
 
             let partialAmountAbleToClaimSnapShot = streamPartialAmountAbleToClaim;
             let validClaimAmountSnapShot = streamValidClaimAmount;
-            
+
             await sleep(1000 * 10);
 
             // should not change the amount(after terminate, keep calling countValidClaimAmount
@@ -786,7 +785,7 @@ describe('Proxy', function () {
             expect(streamTerminatedHalfway).to.equal(true);
         });
     });
-    
+
 
     describe("StreamPayment countValidClaimAmount", function () {
 
@@ -841,7 +840,7 @@ describe('Proxy', function () {
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
             ] = await proxiedContract.streams(return_streamID)
 
-            await sleep(1000 * 20);  // sleep until stream start
+            await sleep(20);  // sleep until stream start
             await expect(proxiedContract.connect(payer).countValidClaimAmount(return_streamID)).to.be.revertedWith("This streamID's receiver is not you, you cannot count the claim asset");
         });
 
@@ -895,8 +894,8 @@ describe('Proxy', function () {
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
             ] = await proxiedContract.streams(return_streamID)
 
-            await sleep(1000 * 20);  // sleep until stream start
-            
+            await sleep(20);  // sleep until stream start
+
             // terminatePayment
             await proxiedContract.connect(payer).terminatePayment(return_streamID);
             [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
@@ -911,7 +910,7 @@ describe('Proxy', function () {
 
             // call countValidClaimAmount with receiver
             await proxiedContract.connect(receiver).countValidClaimAmount(return_streamID);
-            
+
             // new amount record should not change
             [streamTitle, streamPayer, streamReceiver, streamTokenAddress,
                 streamTotalAmount, streamClaimedAmount, streamPartialAmountAbleToClaim, streamValidClaimAmount, streamStartTime, streamEndTime, streamStreamID, streamTerminatedHalfway,
