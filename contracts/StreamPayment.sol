@@ -34,10 +34,10 @@ contract StreamPayment {
 
     uint256 totalStreams = 0;
     mapping (uint => Stream) public streams;  // key is streamID
-    mapping (uint256 => mapping(uint256 => Penalty)) penalties; // key is [streamID][penaltyID]
-    mapping (uint256 => uint256) penaltyLength; // key is streamID
-    mapping (uint256 => uint256) totalPenaltyAmount; // key is streamID
-    mapping (uint256 => mapping(uint256 => uint256)) penaltyAmount; // key is streamID
+    mapping (uint256 => mapping(uint256 => Penalty)) public penalties; // key is [streamID][penaltyID]
+    mapping (uint256 => uint256) public penaltyLength; // key is streamID
+    mapping (uint256 => uint256) public totalPenaltyAmount; // key is streamID
+    mapping (uint256 => mapping(uint256 => uint256)) public penaltyAmount; // key is streamID
 
     function isValidERC20Token(address tokenAddress) public view returns (bool) {
         uint256 size;
