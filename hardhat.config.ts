@@ -1,14 +1,16 @@
+import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import * as dotenv from "dotenv"
 dotenv.config()
+import "hardhat-gas-reporter"
 
-require("@nomiclabs/hardhat-ethers");
+// require("@nomiclabs/hardhat-ethers");
 // require("@nomiclabs/hardhat-etherscan");
 // require("@nomicfoundation/hardhat-verify");
 
-const { API_URL, PRIVATE_KEY, ETHERSCAN_API_KEY } = process.env;
+const { PRIVATE_KEY } = process.env;
 
-module.exports = {
+const config: HardhatUserConfig = {
   solidity: "0.8.18",
   defaultNetwork: "hardhat",
   networks: {
@@ -37,7 +39,8 @@ module.exports = {
     ],
   },
   mocha: {
-    timeout: 70000, // set time limit to be 70 sec
-    parallel: true
+    //parallel: true
   },
 };
+
+export default config;
