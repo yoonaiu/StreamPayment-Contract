@@ -876,4 +876,377 @@ describe('StreamPayment', function () {
             expect(validClaimAmountSnapShot).to.equal(streamValidClaimAmount);
         });
     });
+
+    describe("StreamPayment addPenalty", function () {
+        it("Should revert when stream id is invalid", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+
+            const invalidStreamID = 100000000
+
+            await expect(StreamPayment.connect(payer).addPenalty(invalidStreamID, startTime + 5, endTime - 5)).revertedWith("Invalid streamID")
+        });
+
+        it("Should revert when penalty startTime is earlier than it's own startTime", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await expect(StreamPayment.connect(payer).addPenalty(return_streamID, startTime - 5, endTime)).revertedWith("Start time should be later than stream's own start time")
+        });
+
+        it("Should revert when penalty endTime is later than it's own endTime", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await expect(StreamPayment.connect(payer).addPenalty(return_streamID, startTime, endTime + 5)).revertedWith("End time should be earlier than stream's own end time")
+        });
+
+        it("Should revert when penalty's endTime is earlier than penalty's startTime", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await expect(StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 10, startTime + 5)).revertedWith("End time should be later than start time")
+        });
+
+        it("Should not let the receiver to add penalty", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await expect(StreamPayment.connect(receiver).addPenalty(return_streamID, startTime + 5, endTime - 5)).revertedWith("Only payer of the stream can raise penalty")
+        });
+
+        it("Should update the penaltyLength mapping after add penalty", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const penaltyLength = await StreamPayment.penaltyLength(return_streamID)
+
+            expect(penaltyLength).to.be.equal(1)
+        });
+
+        it("Should update the penalties mapping after add penalty", async function () {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const penalty = await StreamPayment.penalties(return_streamID, 0)
+
+            expect(penalty.startTime.toString()).to.be.equal((startTime + 5).toString())
+            expect(penalty.endTime.toString()).to.be.equal((startTime + 10).toString())
+            expect(penalty.status).to.be.equal("Unknown")
+        });
+    });
+
+    describe("StreamPayment adminPenalty", () => {
+        it("Should revert when passed in invalid stream id", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const invalidStreamID = 1000000
+            const penaltyID = 0
+            await expect(StreamPayment.connect(receiver).admitPenalty(invalidStreamID, penaltyID)).rejectedWith("Invalid streamID")
+        });
+
+        it("Should revert when passed in invalid penalty id", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const invalidPenaltyID = 1000000
+            await expect(StreamPayment.connect(receiver).admitPenalty(return_streamID, invalidPenaltyID)).rejectedWith("Invalid penalty ID")
+        });
+
+        it("Should revert when msg.sender is not receiver", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const penaltyID = 0
+            await expect(StreamPayment.connect(payer).admitPenalty(return_streamID, penaltyID)).rejectedWith("Only receiver of the stream can admit penalty")
+        });
+
+        it("Should update the penalties mapping after admit the penalty", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const penaltyID = 0
+            await StreamPayment.connect(receiver).admitPenalty(return_streamID, penaltyID)
+
+            const status = (await StreamPayment.penalties(return_streamID, penaltyID)).status
+
+            expect(status).to.be.equal("Admit")
+        });
+    })
+
+    describe("StreamPayment denyPenalty", () => {
+        it("Should revert when passed in invalid stream id", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const invalidStreamID = 1000000
+            const penaltyID = 0
+            await expect(StreamPayment.connect(receiver).denyPenalty(invalidStreamID, penaltyID)).rejectedWith("Invalid streamID")
+        });
+
+        it("Should revert when passed in invalid penalty id", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const invalidPenaltyID = 1000000
+            await expect(StreamPayment.connect(receiver).denyPenalty(return_streamID, invalidPenaltyID)).rejectedWith("Invalid penalty ID")
+        });
+
+        it("Should revert when msg.sender is not receiver", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const penaltyID = 0
+            await expect(StreamPayment.connect(payer).denyPenalty(return_streamID, penaltyID)).rejectedWith("Only receiver of the stream can admit penalty")
+        });
+
+        it("Should update the penalties mapping after deny the penalty", async () => {
+            const { owner, payer, receiver, StreamPayment, ERC20Token, title, tokenAddress, totalAmount, startTime, endTime } = await loadFixture(beforeEachFixture);
+            let tx = await StreamPayment.connect(payer).createStream(title,
+                payer.address,
+                receiver.address,
+                tokenAddress,
+                totalAmount,
+                startTime,
+                endTime);
+            let receipt = await tx.wait();
+            const event = receipt.events?.filter(event => event.event == "createStreamEvent")[0]
+
+            const eventArgs = event?.args;
+            if (eventArgs == undefined) {
+                expect(eventArgs).to.be.equal(2)
+                return;
+            }
+            const return_streamID = eventArgs[2]
+
+            await StreamPayment.connect(payer).addPenalty(return_streamID, startTime + 5, startTime + 10)
+
+            const penaltyID = 0
+            await StreamPayment.connect(receiver).denyPenalty(return_streamID, penaltyID)
+
+            const status = (await StreamPayment.penalties(return_streamID, penaltyID)).status
+
+            expect(status).to.be.equal("Dispute")
+        });
+    })
 });
